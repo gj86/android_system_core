@@ -122,30 +122,60 @@ on init
     symlink /proc/self/fd/1 /dev/stdout
     symlink /proc/self/fd/2 /dev/stderr
 
+    # freezer cgroup entries
+    mkdir /dev/freezer/frozen
+    write /dev/freezer/frozen/freezer.state "FROZEN"
+    write /dev/freezer/frozen/freezer.killable 1
+    chown system system /dev/freezer/cgroup.procs
+    chown system system /dev/freezer/frozen
+    chown system system /dev/freezer/tasks
+    chown system system /dev/freezer/frozen/tasks
+    chown system system /dev/freezer/frozen/freezer.state
+    chown system system /dev/freezer/frozen/cgroup.procs
+
+    chmod 0666 /dev/freezer/tasks
+    chmod 0666 /dev/freezer/frozen/tasks
+    chmod 0664 /dev/freezer/frozen/freezer.state
+
     # Create energy-aware scheduler tuning nodes
     mkdir /dev/stune/foreground
     mkdir /dev/stune/background
     mkdir /dev/stune/top-app
     mkdir /dev/stune/rt
+    mkdir /dev/stune/camera-daemon
     chown system system /dev/stune
     chown system system /dev/stune/foreground
     chown system system /dev/stune/background
     chown system system /dev/stune/top-app
     chown system system /dev/stune/rt
+    chown system system /dev/stune/camera-daemon
+
+    write /dev/stune/tasks 0
+    write /dev/stune/foreground/tasks 0
+    write /dev/stune/background/tasks 0
+    write /dev/stune/top-app/tasks 0
+    write /dev/stune/rt/tasks 0
+    write /dev/stune/camera-daemon/tasks 0
+
     chown system system /dev/stune/tasks
     chown system system /dev/stune/foreground/tasks
     chown system system /dev/stune/background/tasks
     chown system system /dev/stune/top-app/tasks
     chown system system /dev/stune/rt/tasks
+    chown system system /dev/stune/camera-daemon/tasks
+
     chmod 0664 /dev/stune/tasks
     chmod 0664 /dev/stune/foreground/tasks
     chmod 0664 /dev/stune/background/tasks
     chmod 0664 /dev/stune/top-app/tasks
     chmod 0664 /dev/stune/rt/tasks
+    chmod 0664 /dev/stune/camera-daemon/tasks
 
     # Create an stune group for NNAPI HAL processes
     mkdir /dev/stune/nnapi-hal
     chown system system /dev/stune/nnapi-hal
+
+    write /dev/stune/nnapi-hal/tasks 0
     chown system system /dev/stune/nnapi-hal/tasks
     chmod 0664 /dev/stune/nnapi-hal/tasks
     write /dev/stune/nnapi-hal/schedtune.boost 1
@@ -266,10 +296,63 @@ on init
 
     # Create cgroup mount points for process groups
     chown system system /dev/cpuctl
+    chmod 0660 /dev/cpuctl
     chown system system /dev/cpuctl/tasks
     chmod 0666 /dev/cpuctl/tasks
-    write /dev/cpuctl/cpu.rt_period_us 1000000
+    write /dev/cpuctl/cpu.rt_runtime_us 800000
     write /dev/cpuctl/cpu.rt_runtime_us 950000
+    write /dev/cpuctl/cpu.rt_period_us 1000000
+
+    # cpuctl hierarchy for devices using utilclamp
+    mkdir /dev/cpuctl/foreground
+    mkdir /dev/cpuctl/background
+    mkdir /dev/cpuctl/top-app
+    mkdir /dev/cpuctl/rt
+    mkdir /dev/cpuctl/system
+    mkdir /dev/cpuctl/system-background
+    chown system system /dev/cpuctl
+    chown system system /dev/cpuctl/foreground
+    chown system system /dev/cpuctl/background
+    chown system system /dev/cpuctl/top-app
+    chown system system /dev/cpuctl/rt
+    chown system system /dev/cpuctl/system
+    chown system system /dev/cpuctl/system-background
+    chown system system /dev/cpuctl/foreground/tasks
+    chown system system /dev/cpuctl/background/tasks
+    chown system system /dev/cpuctl/top-app/tasks
+    chown system system /dev/cpuctl/rt/tasks
+    chown system system /dev/cpuctl/system/tasks
+    chown system system /dev/cpuctl/system-background/tasks
+    chmod 0666 /dev/cpuctl/foreground/tasks
+    chmod 0666 /dev/cpuctl/background/tasks
+    chmod 0666 /dev/cpuctl/top-app/tasks
+    chmod 0666 /dev/cpuctl/rt/tasks
+    chmod 0666 /dev/cpuctl/system/tasks
+    chmod 0666 /dev/cpuctl/system-background/tasks
+
+    # Create a cpu group for camera daemon processes
+    mkdir /dev/cpuctl/camera-daemon
+    chown system system /dev/cpuctl/camera-daemon
+    chown system system /dev/cpuctl/camera-daemon/tasks
+    chmod 0666 /dev/cpuctl/camera-daemon/tasks
+
+    # Surfaceflinger is in FG group so giving it a bit more
+    write /dev/cpuctl/foreground/cpu.rt_runtime_us 450000
+    write /dev/cpuctl/foreground/cpu.rt_period_us 1000000
+    write /dev/cpuctl/background/cpu.rt_runtime_us 50000
+    write /dev/cpuctl/background/cpu.rt_period_us 1000000
+    write /dev/cpuctl/top-app/cpu.rt_runtime_us 100000
+    write /dev/cpuctl/top-app/cpu.rt_period_us 1000000
+    write /dev/cpuctl/rt/cpu.rt_runtime_us 100000
+    write /dev/cpuctl/rt/cpu.rt_period_us 1000000
+    write /dev/cpuctl/system/cpu.rt_runtime_us 100000
+    write /dev/cpuctl/system/cpu.rt_period_us 1000000
+    write /dev/cpuctl/system-background/cpu.rt_runtime_us 50000
+    write /dev/cpuctl/system-background/cpu.rt_period_us 1000000
+    write /dev/cpuctl/nnapi-hal/cpu.rt_runtime_us 50000
+    write /dev/cpuctl/nnapi-hal/cpu.rt_period_us 1000000
+    write /dev/cpuctl/camera-daemon/cpu.rt_runtime_us 50000
+    write /dev/cpuctl/camera-daemon/cpu.rt_period_us 1000000
 
     # sets up initial cpusets for ActivityManager
     # this ensures that the cpusets are present and usable, but the device's
@@ -280,6 +363,34 @@ on init
     mkdir /dev/cpuset/background
     copy /dev/cpuset/cpus /dev/cpuset/background/cpus
     copy /dev/cpuset/mems /dev/cpuset/background/mems
+    mkdir /dev/cpuset/camera-daemon
+    copy /dev/cpuset/cpus /dev/cpuset/camera-daemon/cpus
+    copy /dev/cpuset/mems /dev/cpuset/camera-daemon/mems
+
+    # system, application is for vr tasks
+    mkdir /dev/cpuset/system
+    copy /dev/cpuset/cpus /dev/cpuset/system/cpus
+    copy /dev/cpuset/mems /dev/cpuset/system/mems
+
+    mkdir /dev/cpuset/system/background
+    copy /dev/cpuset/cpus /dev/cpuset/system/background/cpus
+    copy /dev/cpuset/mems /dev/cpuset/system/background/mems
+
+    mkdir /dev/cpuset/system/performance
+    copy /dev/cpuset/cpus /dev/cpuset/system/performance/cpus
+    copy /dev/cpuset/mems /dev/cpuset/system/performance/mems
+
+    mkdir /dev/cpuset/application
+    copy /dev/cpuset/cpus /dev/cpuset/application/cpus
+    copy /dev/cpuset/mems /dev/cpuset/application/mems
+
+    mkdir /dev/cpuset/application/background
+    copy /dev/cpuset/cpus /dev/cpuset/application/background/cpus
+    copy /dev/cpuset/mems /dev/cpuset/application/background/mems
+
+    mkdir /dev/cpuset/application/performance
+    copy /dev/cpuset/cpus /dev/cpuset/application/performance/cpus
+    copy /dev/cpuset/mems /dev/cpuset/application/performance/mems
 
     # system-background is for system tasks that should only run on
     # little cores, not on bigs
@@ -311,6 +422,22 @@ on init
     chown system system /dev/cpuset/system-background/tasks
     chown system system /dev/cpuset/top-app/tasks
     chown system system /dev/cpuset/restricted/tasks
+    chown system system /dev/cpuset/camera-daemon
+    chown system system /dev/cpuset/camera-daemon/tasks
+
+    chown system system /dev/cpuset/system
+    chown system system /dev/cpuset/system/background
+    chown system system /dev/cpuset/system/performance
+    chown system system /dev/cpuset/application
+    chown system system /dev/cpuset/application/background
+    chown system system /dev/cpuset/application/performance
+
+    chown system system /dev/cpuset/system/tasks
+    chown system system /dev/cpuset/system/background/tasks
+    chown system system /dev/cpuset/system/performance/tasks
+    chown system system /dev/cpuset/application/tasks
+    chown system system /dev/cpuset/application/background/tasks
+    chown system system /dev/cpuset/application/performance/tasks
 
     # set system-background to 0775 so SurfaceFlinger can touch it
     chmod 0775 /dev/cpuset/system-background
@@ -321,6 +448,14 @@ on init
     chmod 0664 /dev/cpuset/top-app/tasks
     chmod 0664 /dev/cpuset/restricted/tasks
     chmod 0664 /dev/cpuset/tasks
+    chmod 0664 /dev/cpuset/camera-daemon/tasks
+
+    chmod 0664 /dev/cpuset/system/tasks
+    chmod 0664 /dev/cpuset/system/background/tasks
+    chmod 0664 /dev/cpuset/system/performance/tasks
+    chmod 0664 /dev/cpuset/application/tasks
+    chmod 0664 /dev/cpuset/application/background/tasks
+    chmod 0664 /dev/cpuset/application/performance/tasks
 
     # make the PSI monitor accessible to others
     chown system system /proc/pressure/memory
@@ -1086,3 +1221,4 @@ on userspace-reboot-resume
 
 on property:sys.boot_completed=1 && property:sys.init.userspace_reboot.in_progress=1
   setprop sys.init.userspace_reboot.in_progress ""
+
