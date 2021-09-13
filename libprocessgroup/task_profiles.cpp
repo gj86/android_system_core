@@ -207,13 +207,14 @@ bool SetCgroupAction::AddTidToCgroup(int tid, int fd) {
 
 bool SetCgroupAction::ExecuteForProcess(uid_t uid, pid_t pid) const {
     std::string procs_path = controller()->GetProcsFilePath(path_, uid, pid);
+    std::string cgroup_name = controller()->name();
     unique_fd tmp_fd(TEMP_FAILURE_RETRY(open(procs_path.c_str(), O_WRONLY | O_CLOEXEC)));
     if (tmp_fd < 0) {
         PLOG(WARNING) << "Failed to open " << procs_path;
         return false;
     }
     if (!AddTidToCgroup(pid, tmp_fd)) {
-        LOG(ERROR) << "Failed to add task into cgroup";
+        LOG(ERROR) << "Failed to add process into cgroup: " << cgroup_name << ", path: " << procs_path;
         return false;
     }
 
@@ -222,10 +223,12 @@ bool SetCgroupAction::ExecuteForProcess(uid_t uid, pid_t pid) const {
 
 bool SetCgroupAction::ExecuteForTask(int tid) const {
     std::lock_guard<std::mutex> lock(fd_mutex_);
+    std::string tasks_path = controller()->GetTasksFilePath(path_);
+    std::string cgroup_name = controller()->name();
     if (IsFdValid()) {
         // fd is cached, reuse it
         if (!AddTidToCgroup(tid, fd_)) {
-            LOG(ERROR) << "Failed to add task into cgroup";
+            LOG(ERROR) << "Failed to add task into cgroup: " << cgroup_name << ", path: " << tasks_path;
             return false;
         }
         return true;
@@ -238,19 +241,18 @@ bool SetCgroupAction::ExecuteForTask(int tid) const {
 
     if (fd_ == FDS_APP_DEPENDENT) {
         // application-dependent path can't be used with tid
-        PLOG(ERROR) << "Application profile can't be applied to a thread";
+        LOG(ERROR) << "Failed to add task into cgroup: " << cgroup_name << ", path: " << tasks_path;
         return false;
     }
 
     // fd was not cached because cached fd can't be used
-    std::string tasks_path = controller()->GetTasksFilePath(path_);
     unique_fd tmp_fd(TEMP_FAILURE_RETRY(open(tasks_path.c_str(), O_WRONLY | O_CLOEXEC)));
     if (tmp_fd < 0) {
         PLOG(WARNING) << "Failed to open " << tasks_path << ": " << strerror(errno);
         return false;
     }
     if (!AddTidToCgroup(tid, tmp_fd)) {
-        LOG(ERROR) << "Failed to add task into cgroup";
+        LOG(ERROR) << "Failed to add task into cgroup: " << cgroup_name << ", path: " << tasks_path;
         return false;
     }
 
